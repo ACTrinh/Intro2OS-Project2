@@ -695,3 +695,17 @@ procdump(void)
     printf("\n");
   }
 }
+
+uint64
+kcollect_nproc(void)
+{
+  struct proc *p;
+  uint64 count = 0;
+
+  for(p = proc; p < &proc[NCPU]; p++){
+    if(p->state != UNUSED) {
+      count++;
+    }
+  }
+  return count;
+}
