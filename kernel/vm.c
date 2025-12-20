@@ -16,6 +16,35 @@ pagetable_t kernel_pagetable;
 extern char etext[];  // kernel.ld sets this to end of kernel code.
 
 extern char trampoline[]; // trampoline.S
+void printpgtb(pagetable_t pagetable, int size)
+{
+  // 2^9 = 512
+  for (int i = 0; i < 512; i++)
+  {
+    pte_t pte = pagetable[i];
+    if (pte & PTE_V)
+    {
+      printf("..");
+      for (int j = 0; j < size; j++)
+      {
+        printf(" ..");
+      }
+      printf("%d: pte %p pa %p\n", i, pte, PTE2PA(pte));
+
+      if ((pte & PTE_V) && (pte & (PTE_R | PTE_W | PTE_X)) == 0)
+      {
+        uint64 child = PTE2PA(pte);
+        printpgtb((pagetable_t)child, size + 1);
+      }
+    }
+  }
+}
+
+void vmprint(pagetable_t pagetable)
+{
+  printf("page table %p\n", pagetable);
+  printpgtb(pagetable, 0);
+}
 
 // Make a direct-map page table for the kernel.
 pagetable_t
@@ -101,12 +130,13 @@ walk(pagetable_t pagetable, uint64 va, int alloc)
   for(int level = 2; level > 0; level--) {
     pte_t *pte = &pagetable[PX(level, va)];
     if(*pte & PTE_V) {
-      pagetable = (pagetable_t)PTE2PA(*pte);
 #ifdef LAB_PGTBL
-      if(PTE_LEAF(*pte)) {
+      if ((*pte & (PTE_R | PTE_W | PTE_X)) != 0) {
+        // leaf PTE (superpage)
         return pte;
       }
 #endif
+      pagetable = (pagetable_t)PTE2PA(*pte);
     } else {
       if(!alloc || (pagetable = (pde_t*)kalloc()) == 0)
         return 0;
@@ -486,19 +516,10 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   }
 }
 
-
-#ifdef LAB_PGTBL
-void
-vmprint(pagetable_t pagetable) {
-  // your code here
-}
-#endif
-
-
-
 #ifdef LAB_PGTBL
 pte_t*
-pgpte(pagetable_t pagetable, uint64 va) {
+pgpte(pagetable_t pagetable, uint64 va)
+{
   return walk(pagetable, va, 0);
 }
 #endif

@@ -71,32 +71,51 @@ sys_sleep(void)
   return 0;
 }
 
-
 #ifdef LAB_PGTBL
-int
+int sys_pgaccess(void)
+{
+    uint64 first_page_va;
+    int n_of_pages_to_check;
+    uint64 output_va;
+    uint64 output_bitmask = 0;
+
+    argaddr(0, &first_page_va);
+    argint(1, &n_of_pages_to_check);
+    argaddr(2, &output_va);
+
+    struct proc *current_process = myproc();
+
+    for (int i = 0; i < n_of_pages_to_check; i++) {
+        uint64 page_va = first_page_va + i * PGSIZE;
+        pte_t *page_table_entry = walk(current_process->pagetable, page_va, 0);
+
+        if ((*page_table_entry & PTE_A) != 0) {
+            output_bitmask |= (1 << i);
+            *page_table_entry = (*page_table_entry) & (~PTE_A);
+        }
+    }
+
+    copyout(current_process->pagetable, output_va, (char *)&output_bitmask, sizeof(output_bitmask));
+
+    return 0;
+}
+uint64
 sys_pgpte(void)
 {
   uint64 va;
-  struct proc *p;  
-
-  p = myproc();
   argaddr(0, &va);
-  pte_t *pte = pgpte(p->pagetable, va);
-  if(pte != 0) {
-      return (uint64) *pte;
-  }
-  return 0;
-}
-#endif
 
-#ifdef LAB_PGTBL
-int
+  pte_t *pte = pgpte(myproc()->pagetable, va);
+  if (pte == 0)
+    return 0;
+
+  return *pte;
+}
+
+uint64
 sys_kpgtbl(void)
 {
-  struct proc *p;  
-
-  p = myproc();
-  vmprint(p->pagetable);
+  vmprint(kernel_pagetable);
   return 0;
 }
 #endif
