@@ -1,0 +1,187 @@
+From 2f295ea79bad9eb2f70f0628158ead433be2c775 Mon Sep 17 00:00:00 2001
+From: AC Trinh <trinhthuhien.ac.0523@gmail.com>
+Date: Sat, 20 Dec 2025 22:55:09 +0700
+Subject: [PATCH] update
+
+---
+ kernel/defs.h      |  1 +
+ kernel/proc.c      | 14 +++++++++++++
+ kernel/syscall.c   | 49 +++++++++++++++++++++++++++++++++++++++++++++-
+ kernel/sysinfo.h   |  1 +
+ kernel/sysproc.c   |  3 ++-
+ user/sysinfotest.c | 20 +++++++++++++++++++
+ 6 files changed, 86 insertions(+), 2 deletions(-)
+
+diff --git a/kernel/defs.h b/kernel/defs.h
+index 09d48d5..847f2ca 100644
+--- a/kernel/defs.h
++++ b/kernel/defs.h
+@@ -108,6 +108,7 @@ int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
+ int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
+ void            procdump(void);
+ uint64          kcollect_nproc(void);
++uint64          kcollect_load(void);
+ 
+ // swtch.S
+ void            swtch(struct context*, struct context*);
+diff --git a/kernel/proc.c b/kernel/proc.c
+index 5bf1974..2dca748 100644
+--- a/kernel/proc.c
++++ b/kernel/proc.c
+@@ -709,3 +709,17 @@ kcollect_nproc(void)
+   }
+   return count;
+ }
++
++uint64
++kcollect_load(void)
++{
++  struct proc *p;
++  uint64 count = 0;
++
++  for(p = proc; p < &proc[NPROC]; p++){
++    if(p->state == RUNNING || p->state == RUNNABLE)
++      count++;
++  }
++  
++  return count;
++}
+\ No newline at end of file
+diff --git a/kernel/syscall.c b/kernel/syscall.c
+index ed3479d..6b211a1 100644
+--- a/kernel/syscall.c
++++ b/kernel/syscall.c
+@@ -158,6 +158,33 @@ static char *syscall_names[] = {
+ [SYS_sysinfo] "sysinfo",
+ };
+ 
++// Mảng xác định số lượng tham số của từng syscall
++static int syscall_argc[] = {
++[SYS_fork]    0,
++[SYS_exit]    1,
++[SYS_wait]    1,
++[SYS_pipe]    1,
++[SYS_read]    3,
++[SYS_kill]    1,
++[SYS_exec]    2,
++[SYS_fstat]   2,
++[SYS_chdir]   1,
++[SYS_dup]     1,
++[SYS_getpid]  0,
++[SYS_sbrk]    1,
++[SYS_sleep]   1,
++[SYS_uptime]  0,
++[SYS_open]    2,
++[SYS_write]   3,
++[SYS_mknod]   3,
++[SYS_unlink]  1,
++[SYS_link]    2,
++[SYS_mkdir]   1,
++[SYS_close]   1,
++[SYS_trace]   1,
++[SYS_sysinfo] 1,
++};
++
+ void
+ syscall(void)
+ {
+@@ -167,10 +194,30 @@ syscall(void)
+   num = p->trapframe->a7;
+ 
+   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
++    // Vì a0 sẽ bị ghi đè bởi giá trị trả về, ta cần lưu mảng args lại.
++    // RISC-V dùng a0-a5 cho các tham số.
++    uint64 args[6];
++    args[0] = p->trapframe->a0;
++    args[1] = p->trapframe->a1;
++    args[2] = p->trapframe->a2;
++    args[3] = p->trapframe->a3;
++    args[4] = p->trapframe->a4;
++    args[5] = p->trapframe->a5;
++
+     p->trapframe->a0 = syscalls[num]();
+ 
+     if((p->trace_mask >> num) & 1){
+-      printf("%d: syscall %s -> %d\n", p->pid, syscall_names[num], (int)p->trapframe->a0);
++      printf("%d: syscall %s(", p->pid, syscall_names[num]);
++
++      int n_args = syscall_argc[num];
++      for(int i = 0; i < n_args; i++) {
++        printf("%d", (int)args[i]); 
++        if(i < n_args - 1) {
++          printf(" "); 
++        }
++      }
++
++      printf(") -> %d\n", (int)p->trapframe->a0);
+     }
+   } 
+   else {
+diff --git a/kernel/sysinfo.h b/kernel/sysinfo.h
+index fb878e6..102f3e2 100644
+--- a/kernel/sysinfo.h
++++ b/kernel/sysinfo.h
+@@ -1,4 +1,5 @@
+ struct sysinfo {
+   uint64 freemem;   // amount of free memory (bytes)
+   uint64 nproc;     // number of process
++  uint64 load;  
+ };
+diff --git a/kernel/sysproc.c b/kernel/sysproc.c
+index 4007c97..edd7b83 100644
+--- a/kernel/sysproc.c
++++ b/kernel/sysproc.c
+@@ -109,10 +109,11 @@ sys_sysinfo(void)
+   struct sysinfo info;
+   uint64 addr;        
+ 
+-  argaddr(0, &addr);s
++  argaddr(0, &addr);
+ 
+   info.freemem = kcollect_free();
+   info.nproc = kcollect_nproc();
++  info.load = kcollect_load();
+ 
+   if(copyout(myproc()->pagetable, addr, (char *)&info, sizeof(info)) < 0)
+     return -1;
+diff --git a/user/sysinfotest.c b/user/sysinfotest.c
+index a92d10a..37ed454 100644
+--- a/user/sysinfotest.c
++++ b/user/sysinfotest.c
+@@ -141,6 +141,25 @@ void testbad() {
+   }
+ }
+ 
++void
++testload() {
++  struct sysinfo info;
++  
++  printf("sysinfotest: test load\n");
++  
++  if(sysinfo(&info) < 0){
++    printf("FAIL: sysinfo failed\n");
++    exit(1);
++  }
++  
++  if(info.load < 1){
++    printf("FAIL: load %ld < 1 (expect >= 1)\n", info.load);
++    exit(1);
++  }
++  
++  printf("sysinfotest: load ok (val=%ld)\n", info.load);
++}
++
+ int
+ main(int argc, char *argv[])
+ {
+@@ -148,6 +167,7 @@ main(int argc, char *argv[])
+   testcall();
+   testmem();
+   testproc();
++  testload();
+   printf("sysinfotest: OK\n");
+   exit(0);
+ }
+-- 
+2.51.0.windows.2
+
