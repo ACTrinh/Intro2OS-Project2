@@ -158,6 +158,33 @@ static char *syscall_names[] = {
 [SYS_sysinfo] "sysinfo",
 };
 
+// Mảng xác định số lượng tham số của từng syscall
+static int syscall_argc[] = {
+[SYS_fork]    0,
+[SYS_exit]    1,
+[SYS_wait]    1,
+[SYS_pipe]    1,
+[SYS_read]    3,
+[SYS_kill]    1,
+[SYS_exec]    2,
+[SYS_fstat]   2,
+[SYS_chdir]   1,
+[SYS_dup]     1,
+[SYS_getpid]  0,
+[SYS_sbrk]    1,
+[SYS_sleep]   1,
+[SYS_uptime]  0,
+[SYS_open]    2,
+[SYS_write]   3,
+[SYS_mknod]   3,
+[SYS_unlink]  1,
+[SYS_link]    2,
+[SYS_mkdir]   1,
+[SYS_close]   1,
+[SYS_trace]   1,
+[SYS_sysinfo] 1,
+};
+
 void
 syscall(void)
 {
@@ -167,10 +194,30 @@ syscall(void)
   num = p->trapframe->a7;
 
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
+    // Vì a0 sẽ bị ghi đè bởi giá trị trả về, ta cần lưu mảng args lại.
+    // RISC-V dùng a0-a5 cho các tham số.
+    uint64 args[6];
+    args[0] = p->trapframe->a0;
+    args[1] = p->trapframe->a1;
+    args[2] = p->trapframe->a2;
+    args[3] = p->trapframe->a3;
+    args[4] = p->trapframe->a4;
+    args[5] = p->trapframe->a5;
+
     p->trapframe->a0 = syscalls[num]();
 
     if((p->trace_mask >> num) & 1){
-      printf("%d: syscall %s -> %d\n", p->pid, syscall_names[num], (int)p->trapframe->a0);
+      printf("%d: syscall %s(", p->pid, syscall_names[num]);
+
+      int n_args = syscall_argc[num];
+      for(int i = 0; i < n_args; i++) {
+        printf("%d", (int)args[i]); 
+        if(i < n_args - 1) {
+          printf(" "); 
+        }
+      }
+
+      printf(") -> %d\n", (int)p->trapframe->a0);
     }
   } 
   else {

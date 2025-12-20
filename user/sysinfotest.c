@@ -141,6 +141,25 @@ void testbad() {
   }
 }
 
+void
+testload() {
+  struct sysinfo info;
+  
+  printf("sysinfotest: test load\n");
+  
+  if(sysinfo(&info) < 0){
+    printf("FAIL: sysinfo failed\n");
+    exit(1);
+  }
+  
+  if(info.load < 1){
+    printf("FAIL: load %ld < 1 (expect >= 1)\n", info.load);
+    exit(1);
+  }
+  
+  printf("sysinfotest: load ok (val=%ld)\n", info.load);
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -148,6 +167,7 @@ main(int argc, char *argv[])
   testcall();
   testmem();
   testproc();
+  testload();
   printf("sysinfotest: OK\n");
   exit(0);
 }

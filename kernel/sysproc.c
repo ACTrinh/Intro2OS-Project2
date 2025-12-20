@@ -109,10 +109,11 @@ sys_sysinfo(void)
   struct sysinfo info;
   uint64 addr;        
 
-  argaddr(0, &addr);s
+  argaddr(0, &addr);
 
   info.freemem = kcollect_free();
   info.nproc = kcollect_nproc();
+  info.load = kcollect_load();
 
   if(copyout(myproc()->pagetable, addr, (char *)&info, sizeof(info)) < 0)
     return -1;

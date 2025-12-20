@@ -709,3 +709,17 @@ kcollect_nproc(void)
   }
   return count;
 }
+
+uint64
+kcollect_load(void)
+{
+  struct proc *p;
+  uint64 count = 0;
+
+  for(p = proc; p < &proc[NPROC]; p++){
+    if(p->state == RUNNING || p->state == RUNNABLE)
+      count++;
+  }
+  
+  return count;
+}
