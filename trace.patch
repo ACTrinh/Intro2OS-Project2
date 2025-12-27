@@ -85,7 +85,7 @@ index 130d9ce..2dca748 100644
 +  struct proc *p;
 +  uint64 count = 0;
 +
-+  for(p = proc; p < &proc[NCPU]; p++){
++  for(p = proc; p < &proc[NPROC]; p++){
 +    if(p->state != UNUSED) {
 +      count++;
 +    }
