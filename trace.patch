@@ -62,10 +62,19 @@ index 0699e7e..5c4c149 100644
 +}
 \ No newline at end of file
 diff --git a/kernel/proc.c b/kernel/proc.c
-index 130d9ce..b8366f9 100644
+index 130d9ce..2dca748 100644
 --- a/kernel/proc.c
 +++ b/kernel/proc.c
-@@ -693,3 +693,31 @@ procdump(void)
+@@ -296,6 +296,8 @@ fork(void)
+   }
+   np->sz = p->sz;
+ 
++  np->trace_mask = p->trace_mask;
++
+   // copy saved user registers.
+   *(np->trapframe) = *(p->trapframe);
+ 
+@@ -693,3 +695,31 @@ procdump(void)
      printf("\n");
    }
  }
